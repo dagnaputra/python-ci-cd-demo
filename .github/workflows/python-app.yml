@@ -1,4 +1,4 @@
-name: Python CI
+name: Python CI/CD
 
 on:
   push:
@@ -25,3 +25,19 @@ jobs:
     - name: Run tests
       run: |
         pytest
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build  # only run if build job succeeds
+
+    steps:
+    - name: Deploy via SSH
+      uses: appleboy/ssh-action@v0.1.10
+      with:
+        host: 3.24.179.71
+        username: ubuntu
+        key: ${{ secrets.EC2_KEY }}
+        script: |
+          cd /home/ubuntu/myapp
+          git pull origin main
+          echo "✅ Deployed latest code!"
