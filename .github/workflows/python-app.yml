@@ -3,15 +3,15 @@ name: Python CI/CD
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout code
+      uses: actions/checkout@v3
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
@@ -23,21 +23,20 @@ jobs:
         pip install pytest
 
     - name: Run tests
+      run: pytest
+
+    - name: Deploy to EC2
+      env:
+        EC2_HOST: ${{ secrets.EC2_HOST }}
+        EC2_USER: ubuntu
       run: |
-        pytest
+        mkdir -p ~/.ssh
+        echo "${{ secrets.EC2_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
 
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build  # only run if build job succeeds
+        # Optional: prevent host verification issue
+        echo "$EC2_HOST ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQE..." >> ~/.ssh/known_hosts || true
 
-    steps:
-    - name: Deploy via SSH
-      uses: appleboy/ssh-action@v0.1.10
-      with:
-        host: 3.24.179.71
-        username: ubuntu
-        key: ${{ secrets.EC2_KEY }}
-        script: |
-          cd /home/ubuntu/myapp
-          git pull origin main
-          echo "✅ Deployed latest code!"
+        # Create target folder & upload app
+        ssh -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "mkdir -p ~/myapp"
+        scp -o StrictHostKeyChecking=no -r . $EC2_USER@$EC2_HOST:~/myapp/
